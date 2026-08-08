@@ -1,0 +1,16 @@
+/build/
+/bin/
+
+*.o
+*.a
+*.so
+*.dll
+*.exe
+*.log
+
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+
+.vscode/
+.idea/
