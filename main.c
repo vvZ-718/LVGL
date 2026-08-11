@@ -47,6 +47,8 @@ void find_pic(char*path,Head *h);
 void find_music(char *path, Head *h);
 static void pic_next(lv_event_t * e);
 static void pic_last(lv_event_t * e);
+static void album_update_image(void); // New
+static void album_back_cb(lv_event_t * e); // New
 void Calendar_Interface(void);
 void Album_Interface(void);
 static void Album_cb(lv_event_t * e);
@@ -66,8 +68,11 @@ void Music_Interface(void);
 static void music_play_pause_cb(lv_event_t * e);
 static void music_next_cb(lv_event_t * e);
 static void music_prev_cb(lv_event_t * e);
+static void music_back_to_main_cb(lv_event_t * e);
 static void music_kill(void);
 static void music_start_play(void);
+static void music_update_track_info(void);
+static void music_style_button(lv_obj_t * button);
 
 
 /* 视频播放器 */
@@ -92,6 +97,10 @@ static void note_delete_cb(lv_event_t * e);
 static void note_delete_confirm_cb(lv_event_t * ev);
 static void note_delete_cancel_cb(lv_event_t * ev);
 static void note_keyboard_cb(lv_event_t * e);
+static void note_refresh_list(void);
+static void note_close_cb(lv_event_t * e);
+static void note_style_button(lv_obj_t * button);
+static void note_style_textarea(lv_obj_t * textarea);
 void find_notes(char *path, Head *h);
 static void Games_cb(lv_event_t * e);
 static void show_main_win(void);
@@ -106,6 +115,9 @@ static lv_obj_t * album_content = NULL;
 Head *h = NULL;
 static DNode *p = NULL;
 static lv_obj_t * g_bmp = NULL;
+static lv_obj_t * album_filename_label = NULL; // New
+static lv_obj_t * album_counter_label = NULL; // New
+static int album_current_index = 0; // New
 static lv_obj_t * g_ta_user = NULL;
 static lv_obj_t * g_ta_pass = NULL;
 
@@ -116,6 +128,8 @@ static lv_obj_t * music_slider = NULL;
 static lv_obj_t * play_btn = NULL;
 static lv_obj_t * prev_btn = NULL;
 static lv_obj_t * next_btn = NULL;
+static lv_obj_t * music_status_label = NULL;
+static lv_obj_t * music_counter_label = NULL;
 static DNode * music_current = NULL;
 static int music_is_playing = 0;
 static pid_t music_pid = 0;
@@ -131,6 +145,7 @@ static lv_obj_t * note_title_ta = NULL;
 static lv_obj_t * note_content_ta = NULL;
 static lv_obj_t * note_kb = NULL;
 static lv_obj_t * note_filename_ta = NULL;
+static lv_obj_t * note_count_label = NULL;
 static char note_current_file[256] = {0};
 static int note_is_modified = 0;
 Head *h_notes = NULL;
@@ -619,82 +634,160 @@ static void Note_cb(lv_event_t * e)    //记事本回调函数
 }
 
 
+static void note_style_button(lv_obj_t * button)
+{
+    lv_obj_set_style_bg_color(button, lv_color_hex(0x086CD9), 0);
+    lv_obj_set_style_bg_color(button, lv_color_hex(0x0454AD), LV_STATE_PRESSED);
+    lv_obj_set_style_border_color(button, lv_color_hex(0x2B8CFF), 0);
+    lv_obj_set_style_border_width(button, 1, 0);
+    lv_obj_set_style_radius(button, 8, 0);
+    lv_obj_set_style_shadow_width(button, 0, 0);
+    lv_obj_set_style_text_color(button, lv_color_hex(0xFFFFFF), 0);
+    lv_obj_set_style_outline_color(button, lv_color_hex(0x9ACBFF), LV_STATE_FOCUSED);
+    lv_obj_set_style_outline_width(button, 2, LV_STATE_FOCUSED);
+}
+
+static void note_style_textarea(lv_obj_t * textarea)
+{
+    lv_obj_set_style_bg_color(textarea, lv_color_hex(0x0C1118), 0);
+    lv_obj_set_style_bg_opa(textarea, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_color(textarea, lv_color_hex(0x263445), 0);
+    lv_obj_set_style_border_color(textarea, lv_color_hex(0x1687FF), LV_STATE_FOCUSED);
+    lv_obj_set_style_border_width(textarea, 1, 0);
+    lv_obj_set_style_border_width(textarea, 2, LV_STATE_FOCUSED);
+    lv_obj_set_style_radius(textarea, 8, 0);
+    lv_obj_set_style_pad_all(textarea, 12, 0);
+    lv_obj_set_style_text_color(textarea, lv_color_hex(0xFFFFFF), 0);
+    lv_obj_set_style_text_font(textarea, &lv_font_montserrat_18, 0);
+    lv_obj_set_style_text_color(textarea, lv_color_hex(0x66788B), LV_PART_TEXTAREA_PLACEHOLDER);
+    lv_obj_set_style_bg_color(textarea, lv_color_hex(0x1687FF), LV_PART_CURSOR);
+}
+
+static void note_refresh_list(void)
+{
+    if(Note_win == NULL) return;
+
+    if(notes_list != NULL) {
+        lv_obj_delete(notes_list);
+        notes_list = NULL;
+    }
+
+    if(note_count_label != NULL) {
+        lv_label_set_text_fmt(note_count_label, "%d NOTES", h_notes != NULL ? h_notes->num : 0);
+    }
+
+    notes_list = lv_list_create(Note_win);
+    lv_obj_set_size(notes_list, 928, 416);
+    lv_obj_set_pos(notes_list, 48, 100);
+    lv_obj_set_style_bg_color(notes_list, lv_color_hex(0x0C1118), 0);
+    lv_obj_set_style_bg_opa(notes_list, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_color(notes_list, lv_color_hex(0x202C3A), 0);
+    lv_obj_set_style_border_width(notes_list, 1, 0);
+    lv_obj_set_style_radius(notes_list, 8, 0);
+    lv_obj_set_style_pad_all(notes_list, 8, 0);
+    lv_obj_set_style_pad_row(notes_list, 6, 0);
+    lv_obj_set_scrollbar_mode(notes_list, LV_SCROLLBAR_MODE_AUTO);
+
+    lv_obj_t * section = lv_list_add_text(notes_list, "ALL NOTES");
+    lv_obj_set_style_text_color(section, lv_color_hex(0x6F9DC5), 0);
+    lv_obj_set_style_text_font(section, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_bg_opa(section, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_pad_hor(section, 12, 0);
+    lv_obj_set_style_pad_ver(section, 10, 0);
+
+    if(h_notes != NULL && h_notes->first != NULL) {
+        DNode * pn = h_notes->first;
+        do {
+            char * pname = strrchr(pn->data, '/');
+            const char * show = pname != NULL ? pname + 1 : pn->data;
+            lv_obj_t * button = lv_list_add_button(notes_list, LV_SYMBOL_FILE, show);
+            lv_obj_set_height(button, 58);
+            lv_obj_set_style_bg_color(button, lv_color_hex(0x111A25), 0);
+            lv_obj_set_style_bg_color(button, lv_color_hex(0x075DBD), LV_STATE_PRESSED);
+            lv_obj_set_style_text_color(button, lv_color_hex(0xFFFFFF), 0);
+            lv_obj_set_style_text_font(button, &lv_font_montserrat_18, 0);
+            lv_obj_set_style_border_color(button, lv_color_hex(0x243244), 0);
+            lv_obj_set_style_border_width(button, 1, 0);
+            lv_obj_set_style_radius(button, 6, 0);
+            lv_obj_set_style_pad_hor(button, 16, 0);
+            lv_obj_set_style_pad_column(button, 14, 0);
+            lv_obj_add_event_cb(button, note_edit_cb, LV_EVENT_CLICKED, (void *)pn);
+            pn = pn->next;
+        } while(pn != h_notes->first);
+    }
+    else {
+        lv_obj_t * empty = lv_list_add_text(notes_list, "No notes available");
+        lv_obj_set_style_text_color(empty, lv_color_hex(0x718196), 0);
+        lv_obj_set_style_text_font(empty, &lv_font_montserrat_18, 0);
+        lv_obj_set_style_text_align(empty, LV_TEXT_ALIGN_CENTER, 0);
+        lv_obj_set_style_bg_opa(empty, LV_OPA_TRANSP, 0);
+        lv_obj_set_style_pad_ver(empty, 60, 0);
+    }
+}
+
+static void note_close_cb(lv_event_t * e)
+{
+    LV_UNUSED(e);
+    lv_obj_remove_flag(Main_win, LV_OBJ_FLAG_HIDDEN);
+    if(Note_win != NULL) lv_obj_delete_async(Note_win);
+    Note_win = NULL;
+    notes_list = NULL;
+    note_count_label = NULL;
+}
+
 void Note_Interface(void)
 {
     Note_win = lv_obj_create(lv_screen_active());
-    lv_obj_set_size(Note_win,1024,600);
-    lv_obj_set_pos(Note_win,0,0);
+    lv_obj_set_size(Note_win, 1024, 600);
+    lv_obj_set_pos(Note_win, 0, 0);
+    lv_obj_set_style_bg_color(Note_win, lv_color_hex(0x05070B), 0);
+    lv_obj_set_style_bg_opa(Note_win, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_width(Note_win, 0, 0);
+    lv_obj_set_style_radius(Note_win, 0, 0);
+    lv_obj_set_style_pad_all(Note_win, 0, 0);
+    lv_obj_remove_flag(Note_win, LV_OBJ_FLAG_SCROLLABLE);
 
-    // 2. 标题 " Note "
-    lv_obj_t * title_bg = lv_obj_create(Note_win);
-    lv_obj_set_style_bg_color(title_bg,lv_color_hex(0x000000),0);
-    lv_obj_set_size(title_bg,250,100);
-    lv_obj_align(title_bg,LV_ALIGN_TOP_MID,0,0);
-    lv_obj_t * title = lv_label_create(title_bg);
-    lv_label_set_text(title,"Note");
-    lv_obj_set_style_text_color(title,lv_color_hex(0xFFFFFF),0);
-    lv_obj_set_style_bg_opa(title,LV_OPA_10,0);
-    lv_obj_align(title,LV_ALIGN_CENTER,0,0);
-    lv_obj_set_style_text_font(title,&lv_font_montserrat_48,0);
-
-    // 3. 笔记列表（中间区域）
-    notes_list = lv_list_create(Note_win);
-    lv_obj_set_size(notes_list, 800, 400);
-    lv_obj_align(notes_list, LV_ALIGN_CENTER, 0, 50);
-
-    if(h_notes&&h_notes->first)
-    {
-        lv_list_add_text(notes_list,"All of notes");
-        DNode *pn = h_notes->first;
-        int first = 1;
-        while(1) 
-        {
-            /* 只显示文件名 */
-            char *pname = strrchr(pn->data, '/');
-            const char *show = pname ? pname + 1 : pn->data;
-
-            lv_obj_t * btn = lv_list_add_button(notes_list, LV_SYMBOL_FILE, show);
-            lv_obj_add_event_cb(btn, note_edit_cb, LV_EVENT_CLICKED, (void*)pn);
-            if(first) 
-            { 
-                first = 0; 
-                pn = pn->next; 
-            }
-            else 
-            { 
-                pn = pn->next; 
-            }
-            if(pn == h_notes->first) 
-                break;
-        }
-    } 
-    else 
-    {
-        lv_list_add_text(notes_list, "No notes available");
-    }
-    
-    /* 新建笔记按钮 */
-    lv_obj_t * btn_new = lv_button_create(Note_win);
-    lv_obj_align(btn_new,LV_ALIGN_BOTTOM_MID,0,-30);
-    lv_obj_set_size(btn_new,280,80);
-    lv_obj_t * label_new = lv_label_create(btn_new);
-    lv_label_set_long_mode(label_new,LV_LABEL_LONG_SCROLL);
-    lv_label_set_text(label_new,"Create a new note");
-    lv_obj_set_style_text_font(label_new,&lv_font_montserrat_22,0);
-    lv_obj_center(label_new);
-    lv_obj_add_event_cb(btn_new,note_new_cb,LV_EVENT_CLICKED,NULL);
-    
-
-
-    // 6. 返回按钮（左上角，参考 Album_Interface）
     lv_obj_t * btn_back = lv_button_create(Note_win);
+    lv_obj_set_size(btn_back, 52, 48);
+    lv_obj_set_pos(btn_back, 48, 24);
+    note_style_button(btn_back);
     lv_obj_t * lbl_back = lv_label_create(btn_back);
-    lv_label_set_text(lbl_back, "Back");
+    lv_label_set_text(lbl_back, LV_SYMBOL_LEFT);
+    lv_obj_set_style_text_font(lbl_back, &lv_font_montserrat_24, 0);
     lv_obj_center(lbl_back);
-    lv_obj_set_size(btn_back, 100, 50);
-    lv_obj_set_pos(btn_back, 10, 10);
-    lv_obj_add_event_cb(btn_back, back_to_main_cb, LV_EVENT_CLICKED, Note_win);
+    lv_obj_add_event_cb(btn_back, note_close_cb, LV_EVENT_CLICKED, NULL);
 
+    lv_obj_t * title = lv_label_create(Note_win);
+    lv_label_set_text(title, "NOTES");
+    lv_obj_set_style_text_color(title, lv_color_hex(0xFFFFFF), 0);
+    lv_obj_set_style_text_font(title, &lv_font_montserrat_30, 0);
+    lv_obj_set_pos(title, 124, 31);
+
+    note_count_label = lv_label_create(Note_win);
+    lv_label_set_text(note_count_label, "0 NOTES");
+    lv_obj_set_style_text_color(note_count_label, lv_color_hex(0x8B9AAA), 0);
+    lv_obj_set_style_text_font(note_count_label, &lv_font_montserrat_16, 0);
+    lv_obj_align(note_count_label, LV_ALIGN_TOP_RIGHT, -48, 39);
+
+    lv_obj_t * header_rule = lv_obj_create(Note_win);
+    lv_obj_set_size(header_rule, 928, 1);
+    lv_obj_set_pos(header_rule, 48, 88);
+    lv_obj_set_style_bg_color(header_rule, lv_color_hex(0x202833), 0);
+    lv_obj_set_style_bg_opa(header_rule, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_width(header_rule, 0, 0);
+    lv_obj_remove_flag(header_rule, LV_OBJ_FLAG_SCROLLABLE);
+
+    note_refresh_list();
+
+    lv_obj_t * btn_new = lv_button_create(Note_win);
+    lv_obj_set_size(btn_new, 176, 52);
+    lv_obj_set_pos(btn_new, 800, 532);
+    note_style_button(btn_new);
+    lv_obj_t * label_new = lv_label_create(btn_new);
+    lv_label_set_text(label_new, LV_SYMBOL_PLUS "  New note");
+    lv_obj_set_style_text_font(label_new, &lv_font_montserrat_18, 0);
+    lv_obj_center(label_new);
+    lv_obj_add_event_cb(btn_new, note_new_cb, LV_EVENT_CLICKED, NULL);
 }
 
 
@@ -719,83 +812,126 @@ static void note_new_cb(lv_event_t * e)
     note_editor_win = lv_obj_create(lv_screen_active());
     lv_obj_set_size(note_editor_win, 1024, 600);
     lv_obj_set_pos(note_editor_win, 0, 0);
+    lv_obj_set_style_bg_color(note_editor_win, lv_color_hex(0x05070B), 0);
+    lv_obj_set_style_bg_opa(note_editor_win, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_width(note_editor_win, 0, 0);
+    lv_obj_set_style_radius(note_editor_win, 0, 0);
+    lv_obj_set_style_pad_all(note_editor_win, 0, 0);
+    lv_obj_remove_flag(note_editor_win, LV_OBJ_FLAG_SCROLLABLE);
 
-    /* 文件名输入框 */
-    lv_obj_t * lb_fn = lv_label_create(note_editor_win);
-    lv_label_set_text(lb_fn, "File:");
-    lv_obj_set_style_text_font(lb_fn, &lv_myfont_30, 0);
-    lv_obj_set_pos(lb_fn, 50, 20);
+    lv_obj_t * btn_back = lv_button_create(note_editor_win);
+    lv_obj_set_size(btn_back, 52, 44);
+    lv_obj_set_pos(btn_back, 32, 12);
+    note_style_button(btn_back);
+    lv_obj_t * lb_back = lv_label_create(btn_back);
+    lv_label_set_text(lb_back, LV_SYMBOL_LEFT);
+    lv_obj_set_style_text_font(lb_back, &lv_font_montserrat_22, 0);
+    lv_obj_center(lb_back);
+    lv_obj_add_event_cb(btn_back, note_back_list_cb, LV_EVENT_CLICKED, NULL);
 
-    note_filename_ta = lv_textarea_create(note_editor_win);
-    lv_obj_set_size(note_filename_ta, 400, 40);
-    lv_obj_set_pos(note_filename_ta, 150, 15);
-    lv_textarea_set_placeholder_text(note_filename_ta, "file name");
-    lv_textarea_set_one_line(note_filename_ta, true);
+    lv_obj_t * editor_title = lv_label_create(note_editor_win);
+    lv_label_set_text(editor_title, note_current_file[0] == '\0' ? "NEW NOTE" : "EDIT NOTE");
+    lv_obj_set_style_text_color(editor_title, lv_color_hex(0xFFFFFF), 0);
+    lv_obj_set_style_text_font(editor_title, &lv_font_montserrat_26, 0);
+    lv_obj_set_pos(editor_title, 104, 20);
 
-    /* 标题输入框 */
-    lv_obj_t * label_title = lv_label_create(note_editor_win);
-    lv_label_set_text(label_title, "Title:");
-    lv_obj_set_style_text_font(label_title, &lv_myfont_30, 0);
-    lv_obj_set_pos(label_title, 50, 75);
-
-    note_title_ta = lv_textarea_create(note_editor_win);
-    lv_obj_set_size(note_title_ta, 600, 40);
-    lv_obj_set_pos(note_title_ta, 150, 70);
-    lv_textarea_set_placeholder_text(note_title_ta, "Input Title...");
-    lv_textarea_set_one_line(note_title_ta, true);
-
-    /* 内容输入框 */
-    lv_obj_t * label_content = lv_label_create(note_editor_win);
-    lv_label_set_text(label_content, "Content:");
-    lv_obj_set_style_text_font(label_content, &lv_myfont_30, 0);
-    lv_obj_set_pos(label_content, 50, 130);
-
-    note_content_ta = lv_textarea_create(note_editor_win);
-    lv_obj_set_size(note_content_ta, 800, 220);
-    lv_obj_set_pos(note_content_ta, 50, 160);
-    lv_textarea_set_placeholder_text(note_content_ta, "Input Content...");
-
-    /* 键盘 */
-    note_kb = lv_keyboard_create(note_editor_win);
-    lv_keyboard_set_textarea(note_kb, note_filename_ta);
-    lv_obj_remove_flag(note_kb, LV_OBJ_FLAG_HIDDEN);
-
-    lv_obj_add_event_cb(note_filename_ta, note_keyboard_cb, LV_EVENT_ALL, note_kb);
-    lv_obj_add_event_cb(note_title_ta, note_keyboard_cb, LV_EVENT_ALL, note_kb);
-    lv_obj_add_event_cb(note_content_ta, note_keyboard_cb, LV_EVENT_ALL, note_kb);
-
-    /* 保存按钮 */
     lv_obj_t * btn_save = lv_button_create(note_editor_win);
-    lv_obj_set_pos(btn_save, 850, 5);
-    lv_obj_set_size(btn_save, 100, 50);
+    lv_obj_set_size(btn_save, 120, 44);
+    lv_obj_set_pos(btn_save, 856, 12);
+    note_style_button(btn_save);
     lv_obj_t * lb_save = lv_label_create(btn_save);
-    lv_label_set_text(lb_save, "Save");
-    lv_obj_set_style_text_font(lb_save, &lv_myfont_30, 0);
+    lv_label_set_text(lb_save, LV_SYMBOL_SAVE "  Save");
+    lv_obj_set_style_text_font(lb_save, &lv_font_montserrat_16, 0);
     lv_obj_center(lb_save);
     lv_obj_add_event_cb(btn_save, note_save_cb, LV_EVENT_CLICKED, NULL);
 
-    /* 删除按钮（编辑已有笔记时显示） */
-    if(note_current_file[0] != '\0') 
-    {
+    if(note_current_file[0] != '\0') {
         lv_obj_t * btn_del = lv_button_create(note_editor_win);
-        lv_obj_set_pos(btn_del, 850, 65);
-        lv_obj_set_size(btn_del, 100, 50);
+        lv_obj_set_size(btn_del, 48, 44);
+        lv_obj_set_pos(btn_del, 796, 12);
+        lv_obj_set_style_bg_color(btn_del, lv_color_hex(0xB3261E), 0);
+        lv_obj_set_style_bg_color(btn_del, lv_color_hex(0x8E1B16), LV_STATE_PRESSED);
+        lv_obj_set_style_border_color(btn_del, lv_color_hex(0xE05B52), 0);
+        lv_obj_set_style_border_width(btn_del, 1, 0);
+        lv_obj_set_style_radius(btn_del, 8, 0);
+        lv_obj_set_style_shadow_width(btn_del, 0, 0);
         lv_obj_t * lb_del = lv_label_create(btn_del);
-        lv_label_set_text(lb_del, "Remove");
-        lv_obj_set_style_text_font(lb_del, &lv_myfont_30, 0);
+        lv_label_set_text(lb_del, LV_SYMBOL_TRASH);
+        lv_obj_set_style_text_color(lb_del, lv_color_hex(0xFFFFFF), 0);
+        lv_obj_set_style_text_font(lb_del, &lv_font_montserrat_18, 0);
         lv_obj_center(lb_del);
         lv_obj_add_event_cb(btn_del, note_delete_cb, LV_EVENT_CLICKED, NULL);
     }
 
-    /* 返回列表按钮 */
-    lv_obj_t * btn_back = lv_button_create(note_editor_win);
-    lv_obj_set_pos(btn_back, 850, 125);
-    lv_obj_set_size(btn_back, 100, 50);
-    lv_obj_t * lb_back = lv_label_create(btn_back);
-    lv_label_set_text(lb_back, "Back");
-    lv_obj_set_style_text_font(lb_back, &lv_myfont_30, 0);
-    lv_obj_center(lb_back);
-    lv_obj_add_event_cb(btn_back, note_back_list_cb, LV_EVENT_CLICKED, NULL);
+    lv_obj_t * header_rule = lv_obj_create(note_editor_win);
+    lv_obj_set_size(header_rule, 960, 1);
+    lv_obj_set_pos(header_rule, 32, 68);
+    lv_obj_set_style_bg_color(header_rule, lv_color_hex(0x202833), 0);
+    lv_obj_set_style_bg_opa(header_rule, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_width(header_rule, 0, 0);
+    lv_obj_remove_flag(header_rule, LV_OBJ_FLAG_SCROLLABLE);
+
+    lv_obj_t * lb_fn = lv_label_create(note_editor_win);
+    lv_label_set_text(lb_fn, "FILE NAME");
+    lv_obj_set_style_text_color(lb_fn, lv_color_hex(0x6F9DC5), 0);
+    lv_obj_set_style_text_font(lb_fn, &lv_font_montserrat_14, 0);
+    lv_obj_set_pos(lb_fn, 32, 82);
+
+    note_filename_ta = lv_textarea_create(note_editor_win);
+    lv_obj_set_size(note_filename_ta, 300, 50);
+    lv_obj_set_pos(note_filename_ta, 32, 104);
+    lv_textarea_set_placeholder_text(note_filename_ta, "File name");
+    lv_textarea_set_one_line(note_filename_ta, true);
+    note_style_textarea(note_filename_ta);
+
+    lv_obj_t * label_title = lv_label_create(note_editor_win);
+    lv_label_set_text(label_title, "TITLE");
+    lv_obj_set_style_text_color(label_title, lv_color_hex(0x6F9DC5), 0);
+    lv_obj_set_style_text_font(label_title, &lv_font_montserrat_14, 0);
+    lv_obj_set_pos(label_title, 350, 82);
+
+    note_title_ta = lv_textarea_create(note_editor_win);
+    lv_obj_set_size(note_title_ta, 626, 50);
+    lv_obj_set_pos(note_title_ta, 350, 104);
+    lv_textarea_set_placeholder_text(note_title_ta, "Note title");
+    lv_textarea_set_one_line(note_title_ta, true);
+    note_style_textarea(note_title_ta);
+
+    lv_obj_t * label_content = lv_label_create(note_editor_win);
+    lv_label_set_text(label_content, "CONTENT");
+    lv_obj_set_style_text_color(label_content, lv_color_hex(0x6F9DC5), 0);
+    lv_obj_set_style_text_font(label_content, &lv_font_montserrat_14, 0);
+    lv_obj_set_pos(label_content, 32, 166);
+
+    note_content_ta = lv_textarea_create(note_editor_win);
+    lv_obj_set_size(note_content_ta, 944, 154);
+    lv_obj_set_pos(note_content_ta, 32, 188);
+    lv_textarea_set_placeholder_text(note_content_ta, "Write your note...");
+    note_style_textarea(note_content_ta);
+
+    note_kb = lv_keyboard_create(note_editor_win);
+    lv_obj_set_size(note_kb, 1024, 246);
+    lv_obj_align(note_kb, LV_ALIGN_BOTTOM_MID, 0, 0);
+    lv_obj_set_style_bg_color(note_kb, lv_color_hex(0x080C12), 0);
+    lv_obj_set_style_bg_opa(note_kb, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_color(note_kb, lv_color_hex(0x202C3A), 0);
+    lv_obj_set_style_border_width(note_kb, 1, 0);
+    lv_obj_set_style_radius(note_kb, 0, 0);
+    lv_obj_set_style_pad_all(note_kb, 8, 0);
+    lv_obj_set_style_pad_row(note_kb, 6, 0);
+    lv_obj_set_style_pad_column(note_kb, 6, 0);
+    lv_obj_set_style_bg_color(note_kb, lv_color_hex(0x152131), LV_PART_ITEMS);
+    lv_obj_set_style_bg_color(note_kb, lv_color_hex(0x075DBD), LV_PART_ITEMS | LV_STATE_PRESSED);
+    lv_obj_set_style_text_color(note_kb, lv_color_hex(0xFFFFFF), LV_PART_ITEMS);
+    lv_obj_set_style_text_font(note_kb, &lv_font_montserrat_16, LV_PART_ITEMS);
+    lv_obj_set_style_border_width(note_kb, 0, LV_PART_ITEMS);
+    lv_obj_set_style_radius(note_kb, 6, LV_PART_ITEMS);
+    lv_keyboard_set_textarea(note_kb, note_filename_ta);
+    lv_obj_add_flag(note_kb, LV_OBJ_FLAG_HIDDEN);
+
+    lv_obj_add_event_cb(note_filename_ta, note_keyboard_cb, LV_EVENT_ALL, note_kb);
+    lv_obj_add_event_cb(note_title_ta, note_keyboard_cb, LV_EVENT_ALL, note_kb);
+    lv_obj_add_event_cb(note_content_ta, note_keyboard_cb, LV_EVENT_ALL, note_kb);
 
     /* 编辑已有笔记时填入文件名 */
     if(note_current_file[0] != '\0') {
@@ -859,7 +995,7 @@ static void note_edit_cb(lv_event_t * e)
 static void msgbox_close_cb(lv_timer_t * timer)
 {
     lv_obj_t * mbox = lv_timer_get_user_data(timer);
-    lv_msgbox_close(mbox);
+    if(mbox != NULL && lv_obj_is_valid(mbox)) lv_msgbox_close(mbox);
 }
 
 static void note_save_cb(lv_event_t * e)
@@ -929,51 +1065,20 @@ static void note_save_cb(lv_event_t * e)
     note_editor_win = NULL;
     lv_obj_remove_flag(Note_win, LV_OBJ_FLAG_HIDDEN);
 
-    /* 重建列表 */
-    if(notes_list) 
-    { 
-        lv_obj_delete(notes_list); notes_list = NULL; 
-    }
-
-    lv_obj_t * list = lv_list_create(Note_win);
-    lv_obj_set_size(list, 800, 420);
-    lv_obj_align(list, LV_ALIGN_CENTER, 0, 50);
-    notes_list = list;
-
-    if(h_notes && h_notes->first) 
-    {
-        lv_list_add_text(list, "All of notes");
-        DNode *pn = h_notes->first;
-        int first = 1;
-        while(1) 
-        {
-            char *pname = strrchr(pn->data, '/');
-            const char *show = pname ? pname + 1 : pn->data;
-            lv_obj_t * btn = lv_list_add_button(list, LV_SYMBOL_FILE, show);
-            lv_obj_add_event_cb(btn, note_edit_cb, LV_EVENT_CLICKED, (void*)pn);
-            if(first) 
-            { 
-                first = 0;
-                pn = pn->next; 
-            }
-            else 
-            { 
-                pn = pn->next; 
-            }
-            if(pn == h_notes->first) 
-                break;
-        }
-    } 
-    else 
-    {
-        lv_list_add_text(list, "No notes available");
-    }
+    note_refresh_list();
 
     /* 提示保存成功 */
     lv_obj_t * mbox = lv_msgbox_create(NULL);
-    lv_msgbox_add_title(mbox, "Prompt");
-    lv_msgbox_add_text(mbox, "Saved successfully");
-    lv_msgbox_add_close_button(mbox);
+    lv_obj_set_width(mbox, 400);
+    lv_obj_set_style_bg_color(mbox, lv_color_hex(0x0C1118), 0);
+    lv_obj_set_style_border_color(mbox, lv_color_hex(0x2B8CFF), 0);
+    lv_obj_set_style_border_width(mbox, 1, 0);
+    lv_obj_set_style_radius(mbox, 8, 0);
+    lv_obj_set_style_text_color(mbox, lv_color_hex(0xFFFFFF), 0);
+    lv_msgbox_add_title(mbox, "NOTE SAVED");
+    lv_msgbox_add_text(mbox, "Your changes were saved successfully.");
+    lv_obj_t * btn_close = lv_msgbox_add_close_button(mbox);
+    note_style_button(btn_close);
 
     /* 2秒后自动关闭 */
     lv_timer_t * timer = lv_timer_create(msgbox_close_cb, 2000, mbox);
@@ -1015,12 +1120,7 @@ static void note_delete_confirm_cb(lv_event_t * ev)
         note_editor_win = NULL;
     }
     lv_obj_remove_flag(Note_win, LV_OBJ_FLAG_HIDDEN);
-    if(notes_list) 
-    {
-        lv_obj_delete(notes_list);
-        notes_list = NULL;
-    }
-    Note_Interface();  /* 重新加载列表 */
+    note_refresh_list();
 }
 
 static void note_delete_cancel_cb(lv_event_t * ev)
@@ -1035,15 +1135,26 @@ static void note_delete_cb(lv_event_t * e)
 
     /* 确认删除的 msgbox */
     lv_obj_t * mbox = lv_msgbox_create(NULL);
-    lv_msgbox_add_title(mbox, "Confirm to delete");
-    lv_msgbox_add_text(mbox, "Are you sure you want to delete this note?");
+    lv_obj_set_width(mbox, 460);
+    lv_obj_set_style_bg_color(mbox, lv_color_hex(0x0C1118), 0);
+    lv_obj_set_style_border_color(mbox, lv_color_hex(0x263445), 0);
+    lv_obj_set_style_border_width(mbox, 1, 0);
+    lv_obj_set_style_radius(mbox, 8, 0);
+    lv_obj_set_style_text_color(mbox, lv_color_hex(0xFFFFFF), 0);
+    lv_msgbox_add_title(mbox, "DELETE NOTE");
+    lv_msgbox_add_text(mbox, "This action cannot be undone.");
 
     /* 确定按钮 */
-    lv_obj_t * btn_ok = lv_msgbox_add_footer_button(mbox, "Sure");
+    lv_obj_t * btn_ok = lv_msgbox_add_footer_button(mbox, "Delete");
+    lv_obj_set_style_bg_color(btn_ok, lv_color_hex(0xB3261E), 0);
+    lv_obj_set_style_bg_color(btn_ok, lv_color_hex(0x8E1B16), LV_STATE_PRESSED);
+    lv_obj_set_style_text_color(btn_ok, lv_color_hex(0xFFFFFF), 0);
+    lv_obj_set_style_radius(btn_ok, 8, 0);
     lv_obj_add_event_cb(btn_ok, note_delete_confirm_cb, LV_EVENT_CLICKED, mbox);
 
     /* 取消按钮 */
-    lv_obj_t * btn_cancel = lv_msgbox_add_footer_button(mbox, "Can");
+    lv_obj_t * btn_cancel = lv_msgbox_add_footer_button(mbox, "Cancel");
+    note_style_button(btn_cancel);
     lv_obj_add_event_cb(btn_cancel, note_delete_cancel_cb, LV_EVENT_CLICKED, mbox);
 }
 
@@ -1066,27 +1177,29 @@ static void note_keyboard_cb(lv_event_t * e)
     lv_obj_t * ta = lv_event_get_target(e);
     lv_obj_t * kb = (lv_obj_t *)lv_event_get_user_data(e);
 
-    if(code == LV_EVENT_FOCUSED) 
-    {
+    if(code == LV_EVENT_PRESSED || code == LV_EVENT_CLICKED || code == LV_EVENT_FOCUSED) {
         lv_keyboard_set_textarea(kb, ta);
         lv_obj_remove_flag(kb, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_move_foreground(kb);
     }
-    if(code == LV_EVENT_DEFOCUSED) 
-    {
-        lv_keyboard_set_textarea(kb, NULL);
-        lv_obj_add_flag(kb, LV_OBJ_FLAG_HIDDEN);
-    }
-    if(code == LV_EVENT_READY) 
-    {
+
+    if(code == LV_EVENT_READY) {
         /* 回车：文件名→标题→内容 */
-        if(ta == note_filename_ta) 
-        {
+        if(ta == note_filename_ta) {
             lv_keyboard_set_textarea(kb, note_title_ta);
-        } 
-        else if(ta == note_title_ta) 
-        {
+        }
+        else if(ta == note_title_ta) {
             lv_keyboard_set_textarea(kb, note_content_ta);
         }
+        else {
+            lv_keyboard_set_textarea(kb, NULL);
+            lv_obj_add_flag(kb, LV_OBJ_FLAG_HIDDEN);
+        }
+    }
+
+    if(code == LV_EVENT_CANCEL) {
+        lv_keyboard_set_textarea(kb, NULL);
+        lv_obj_add_flag(kb, LV_OBJ_FLAG_HIDDEN);
     }
 }
 
@@ -1120,81 +1233,208 @@ static void Music_cb(lv_event_t * e)    //音乐回调函数
     }
 }
 
-void Music_Interface(void)
+static void music_back_to_main_cb(lv_event_t * e)
 {
-    //音乐播放窗口
-    music_win = lv_obj_create(lv_screen_active());
-    lv_obj_set_size(music_win,1024,600);
-    lv_obj_set_pos(music_win,0,0);
+    lv_obj_t * win = lv_event_get_user_data(e);
 
-    // 1. 歌名显示在中上方
-    music_label = lv_label_create(music_win);
-    lv_obj_align(music_label , LV_ALIGN_TOP_MID , 0 , 30);
-    lv_label_set_text(music_label , "No music");
+    lv_obj_remove_flag(Main_win, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_delete_async(win);
 
-    // 中文字体
-    static lv_style_t style_music_label;
-    lv_style_init(&style_music_label);
-    lv_style_set_text_font(&style_music_label, &lv_myfont_30);
-    lv_obj_add_style(music_label, &style_music_label, LV_STATE_DEFAULT);
+    music_win = NULL;
+    music_label = NULL;
+    music_slider = NULL;
+    play_btn = NULL;
+    prev_btn = NULL;
+    next_btn = NULL;
+    music_status_label = NULL;
+    music_counter_label = NULL;
+}
 
-    // 2. 进度条（中间偏下）
-    music_slider = lv_slider_create(music_win);
-    lv_obj_set_size(music_slider,600,20);
-    lv_obj_align(music_slider,LV_ALIGN_CENTER,0,0);
+static void music_style_button(lv_obj_t * button)
+{
+    lv_obj_set_style_bg_color(button, lv_color_hex(0x086CD9), 0);
+    lv_obj_set_style_bg_color(button, lv_color_hex(0x0454AD), LV_STATE_PRESSED);
+    lv_obj_set_style_border_color(button, lv_color_hex(0x2B8CFF), 0);
+    lv_obj_set_style_border_width(button, 1, 0);
+    lv_obj_set_style_radius(button, 8, 0);
+    lv_obj_set_style_shadow_width(button, 0, 0);
+    lv_obj_set_style_text_color(button, lv_color_hex(0xFFFFFF), 0);
+    lv_obj_set_style_outline_color(button, lv_color_hex(0x9ACBFF), LV_STATE_FOCUSED);
+    lv_obj_set_style_outline_width(button, 2, LV_STATE_FOCUSED);
+}
 
+static void music_update_track_info(void)
+{
+    if(music_label == NULL || music_counter_label == NULL || music_status_label == NULL) return;
 
-    // 3. 播放/暂停按钮（进度条下方）
-    play_btn = lv_button_create(music_win);
-    lv_obj_align(play_btn,LV_ALIGN_BOTTOM_MID,0,-60);
-    lv_obj_set_size(play_btn,100,100);      //播放
-
-    lv_obj_t * play_label = lv_label_create(play_btn);
-    lv_label_set_text(play_label, LV_SYMBOL_PLAY);
-    lv_obj_align(play_label,LV_ALIGN_CENTER,0,0);
-    lv_obj_add_event_cb(play_btn,music_play_pause_cb,LV_EVENT_CLICKED,NULL);
-
-    // 4. 上一首按钮（播放按钮左侧）
-    prev_btn = lv_button_create(music_win);
-    lv_obj_align(prev_btn,LV_ALIGN_BOTTOM_MID, -150, -60);
-    lv_obj_set_size(prev_btn,80,80);      //上一首按键创建
-
-    lv_obj_t * prev_label = lv_label_create(prev_btn);
-    lv_label_set_text(prev_label, LV_SYMBOL_PREV);
-    lv_obj_align(prev_label,LV_ALIGN_CENTER,0,0);
-    lv_obj_add_event_cb(prev_btn, music_prev_cb, LV_EVENT_CLICKED, NULL);    //上一首按键
-
-    // 5. 下一首按钮（播放按钮右侧）
-    next_btn = lv_button_create(music_win);
-    lv_obj_align(next_btn,LV_ALIGN_BOTTOM_MID, 150, -60);
-    lv_obj_set_size(next_btn,80,80);      //下一首按键创建
-
-    lv_obj_t * next_label = lv_label_create(next_btn);
-    lv_label_set_text(next_label, LV_SYMBOL_NEXT);
-    lv_obj_align(next_label,LV_ALIGN_CENTER,0,0);
-    lv_obj_add_event_cb(next_btn, music_next_cb, LV_EVENT_CLICKED, NULL);    //下一首按键
-
-    // 6. 返回按钮（左上角，参考 Album_Interface）
-    lv_obj_t * btn_back = lv_button_create(music_win);
-    lv_obj_t * lbl_back = lv_label_create(btn_back);
-    lv_label_set_text(lbl_back, "Back");
-    lv_obj_center(lbl_back);
-    lv_obj_set_size(btn_back, 100, 50);
-    lv_obj_set_pos(btn_back, 10, 10);
-    lv_obj_add_event_cb(btn_back, back_to_main_cb, LV_EVENT_CLICKED, music_win);
-
-
-    // 7. 默认选第一首歌
-    if(h_music && h_music->first) 
-    {
-        music_current = h_music->first;
-        char *pname = strrchr(music_current->data, '/');
-        lv_label_set_text(music_label, pname ? pname + 1 : music_current->data);
+    if(music_current == NULL || h_music == NULL || h_music->num <= 0) {
+        lv_label_set_text(music_label, "No music found");
+        lv_label_set_text(music_counter_label, "0 TRACKS");
+        lv_label_set_text(music_status_label, "EMPTY LIBRARY");
+        return;
     }
 
+    char * pname = strrchr(music_current->data, '/');
+    lv_label_set_text(music_label, pname != NULL ? pname + 1 : music_current->data);
+    lv_label_set_text_fmt(music_counter_label, "%d TRACKS", h_music->num);
+    lv_label_set_text(music_status_label, music_is_playing ? "PLAYING" : "READY");
+}
+
+void Music_Interface(void)
+{
+    music_win = lv_obj_create(lv_screen_active());
+    lv_obj_set_size(music_win, 1024, 600);
+    lv_obj_set_pos(music_win, 0, 0);
+    lv_obj_set_style_bg_color(music_win, lv_color_hex(0x05070B), 0);
+    lv_obj_set_style_bg_opa(music_win, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_width(music_win, 0, 0);
+    lv_obj_set_style_radius(music_win, 0, 0);
+    lv_obj_set_style_pad_all(music_win, 0, 0);
+    lv_obj_remove_flag(music_win, LV_OBJ_FLAG_SCROLLABLE);
+
+    lv_obj_t * btn_back = lv_button_create(music_win);
+    lv_obj_set_size(btn_back, 52, 48);
+    lv_obj_set_pos(btn_back, 48, 24);
+    music_style_button(btn_back);
+    lv_obj_t * lbl_back = lv_label_create(btn_back);
+    lv_label_set_text(lbl_back, LV_SYMBOL_LEFT);
+    lv_obj_set_style_text_font(lbl_back, &lv_font_montserrat_24, 0);
+    lv_obj_center(lbl_back);
+    lv_obj_add_event_cb(btn_back, music_back_to_main_cb, LV_EVENT_CLICKED, music_win);
+
+    lv_obj_t * title = lv_label_create(music_win);
+    lv_label_set_text(title, "MUSIC");
+    lv_obj_set_style_text_color(title, lv_color_hex(0xFFFFFF), 0);
+    lv_obj_set_style_text_font(title, &lv_font_montserrat_30, 0);
+    lv_obj_set_pos(title, 124, 31);
+
+    music_counter_label = lv_label_create(music_win);
+    lv_label_set_text(music_counter_label, "0 TRACKS");
+    lv_obj_set_style_text_color(music_counter_label, lv_color_hex(0x8B9AAA), 0);
+    lv_obj_set_style_text_font(music_counter_label, &lv_font_montserrat_16, 0);
+    lv_obj_align(music_counter_label, LV_ALIGN_TOP_RIGHT, -48, 39);
+
+    lv_obj_t * header_rule = lv_obj_create(music_win);
+    lv_obj_set_size(header_rule, 928, 1);
+    lv_obj_set_pos(header_rule, 48, 95);
+    lv_obj_set_style_bg_color(header_rule, lv_color_hex(0x202833), 0);
+    lv_obj_set_style_bg_opa(header_rule, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_width(header_rule, 0, 0);
+    lv_obj_remove_flag(header_rule, LV_OBJ_FLAG_SCROLLABLE);
+
+    lv_obj_t * cover = lv_obj_create(music_win);
+    lv_obj_set_size(cover, 320, 320);
+    lv_obj_set_pos(cover, 64, 126);
+    lv_obj_set_style_bg_color(cover, lv_color_hex(0x0C1825), 0);
+    lv_obj_set_style_bg_opa(cover, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_color(cover, lv_color_hex(0x1C5E9E), 0);
+    lv_obj_set_style_border_width(cover, 1, 0);
+    lv_obj_set_style_radius(cover, 8, 0);
+    lv_obj_set_style_pad_all(cover, 0, 0);
+    lv_obj_remove_flag(cover, LV_OBJ_FLAG_SCROLLABLE);
+
+    lv_obj_t * cover_icon = lv_label_create(cover);
+    lv_label_set_text(cover_icon, LV_SYMBOL_AUDIO);
+    lv_obj_set_style_text_color(cover_icon, lv_color_hex(0x1687FF), 0);
+    lv_obj_set_style_text_font(cover_icon, &lv_font_montserrat_48, 0);
+    lv_obj_center(cover_icon);
+
+    lv_obj_t * playing_caption = lv_label_create(music_win);
+    lv_label_set_text(playing_caption, "NOW PLAYING");
+    lv_obj_set_style_text_color(playing_caption, lv_color_hex(0x6F9DC5), 0);
+    lv_obj_set_style_text_font(playing_caption, &lv_font_montserrat_16, 0);
+    lv_obj_set_pos(playing_caption, 424, 148);
+
+    music_label = lv_label_create(music_win);
+    lv_label_set_text(music_label, "No music found");
+    lv_label_set_long_mode(music_label, LV_LABEL_LONG_SCROLL_CIRCULAR);
+    lv_obj_set_size(music_label, 552, 52);
+    lv_obj_set_pos(music_label, 424, 188);
+    lv_obj_set_style_text_color(music_label, lv_color_hex(0xFFFFFF), 0);
+    lv_obj_set_style_text_font(music_label, &lv_myfont_30, 0);
+
+    lv_obj_t * source_label = lv_label_create(music_win);
+    lv_label_set_text(source_label, "LOCAL LIBRARY");
+    lv_obj_set_style_text_color(source_label, lv_color_hex(0x718196), 0);
+    lv_obj_set_style_text_font(source_label, &lv_font_montserrat_14, 0);
+    lv_obj_set_pos(source_label, 424, 252);
+
+    lv_obj_t * track_rule = lv_obj_create(music_win);
+    lv_obj_set_size(track_rule, 552, 1);
+    lv_obj_set_pos(track_rule, 424, 286);
+    lv_obj_set_style_bg_color(track_rule, lv_color_hex(0x263241), 0);
+    lv_obj_set_style_bg_opa(track_rule, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_width(track_rule, 0, 0);
+    lv_obj_remove_flag(track_rule, LV_OBJ_FLAG_SCROLLABLE);
+
+    music_slider = lv_slider_create(music_win);
+    lv_obj_set_size(music_slider, 552, 10);
+    lv_obj_set_pos(music_slider, 424, 318);
+    lv_obj_set_style_bg_color(music_slider, lv_color_hex(0x1B2735), LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(music_slider, LV_OPA_COVER, LV_PART_MAIN);
+    lv_obj_set_style_radius(music_slider, 5, LV_PART_MAIN);
+    lv_obj_set_style_bg_color(music_slider, lv_color_hex(0x1687FF), LV_PART_INDICATOR);
+    lv_obj_set_style_radius(music_slider, 5, LV_PART_INDICATOR);
+    lv_obj_set_style_bg_opa(music_slider, LV_OPA_TRANSP, LV_PART_KNOB);
     lv_slider_set_range(music_slider, 0, 100);
     lv_slider_set_value(music_slider, 0, LV_ANIM_OFF);
 
+    music_status_label = lv_label_create(music_win);
+    lv_label_set_text(music_status_label, "READY");
+    lv_obj_set_style_text_color(music_status_label, lv_color_hex(0x6F9DC5), 0);
+    lv_obj_set_style_text_font(music_status_label, &lv_font_montserrat_14, 0);
+    lv_obj_set_pos(music_status_label, 424, 348);
+
+    lv_obj_t * control_rule = lv_obj_create(music_win);
+    lv_obj_set_size(control_rule, 896, 1);
+    lv_obj_set_pos(control_rule, 64, 466);
+    lv_obj_set_style_bg_color(control_rule, lv_color_hex(0x202833), 0);
+    lv_obj_set_style_bg_opa(control_rule, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_width(control_rule, 0, 0);
+    lv_obj_remove_flag(control_rule, LV_OBJ_FLAG_SCROLLABLE);
+
+    play_btn = lv_button_create(music_win);
+    lv_obj_set_size(play_btn, 88, 72);
+    lv_obj_align(play_btn, LV_ALIGN_BOTTOM_MID, 0, -40);
+    music_style_button(play_btn);
+    lv_obj_t * play_label = lv_label_create(play_btn);
+    lv_label_set_text(play_label, music_is_playing ? LV_SYMBOL_PAUSE : LV_SYMBOL_PLAY);
+    lv_obj_set_style_text_font(play_label, &lv_font_montserrat_28, 0);
+    lv_obj_center(play_label);
+    lv_obj_add_event_cb(play_btn, music_play_pause_cb, LV_EVENT_CLICKED, NULL);
+
+    prev_btn = lv_button_create(music_win);
+    lv_obj_set_size(prev_btn, 64, 56);
+    lv_obj_align(prev_btn, LV_ALIGN_BOTTOM_MID, -116, -48);
+    music_style_button(prev_btn);
+    lv_obj_t * prev_label = lv_label_create(prev_btn);
+    lv_label_set_text(prev_label, LV_SYMBOL_PREV);
+    lv_obj_set_style_text_font(prev_label, &lv_font_montserrat_22, 0);
+    lv_obj_center(prev_label);
+    lv_obj_add_event_cb(prev_btn, music_prev_cb, LV_EVENT_CLICKED, NULL);
+
+    next_btn = lv_button_create(music_win);
+    lv_obj_set_size(next_btn, 64, 56);
+    lv_obj_align(next_btn, LV_ALIGN_BOTTOM_MID, 116, -48);
+    music_style_button(next_btn);
+    lv_obj_t * next_label = lv_label_create(next_btn);
+    lv_label_set_text(next_label, LV_SYMBOL_NEXT);
+    lv_obj_set_style_text_font(next_label, &lv_font_montserrat_22, 0);
+    lv_obj_center(next_label);
+    lv_obj_add_event_cb(next_btn, music_next_cb, LV_EVENT_CLICKED, NULL);
+
+    if(h_music != NULL && h_music->first != NULL && h_music->num > 0) {
+        if(music_current == NULL) {
+            music_current = h_music->first;
+        }
+    }
+    else {
+        lv_obj_add_state(play_btn, LV_STATE_DISABLED);
+        lv_obj_add_state(prev_btn, LV_STATE_DISABLED);
+        lv_obj_add_state(next_btn, LV_STATE_DISABLED);
+    }
+
+    music_update_track_info();
 }
 
 static void music_kill(void)
@@ -1239,6 +1479,8 @@ static void music_start_play(void)
         lv_label_set_text(lv_obj_get_child(play_btn, 0), LV_SYMBOL_PAUSE);
         lv_slider_set_value(music_slider, 0, LV_ANIM_OFF);
     }
+
+    music_update_track_info();
 }
 
 static void music_play_pause_cb(lv_event_t * e)
@@ -1251,6 +1493,7 @@ static void music_play_pause_cb(lv_event_t * e)
         music_kill();
         music_is_playing = 0;
         lv_label_set_text(lv_obj_get_child(play_btn, 0), LV_SYMBOL_PLAY);
+        music_update_track_info();
     } else 
     {
         // 播放 → 重新启动
@@ -1303,6 +1546,8 @@ static void Album_cb(lv_event_t * e)    //相册回调函数
 
 }
 
+/* 旧版电子相册代码：完整保留，仅停止参与编译。 */
+#if 0
 void Album_Interface(void)
 {
 
@@ -1462,6 +1707,200 @@ static void pic_last(lv_event_t * e)
     lv_image_set_src(g_bmp, lv_path);
     lv_obj_set_pos(g_bmp, 0, 0);
 }
+#endif
+
+static void album_style_button(lv_obj_t * button) // New
+{ // New
+    lv_obj_set_style_bg_color(button, lv_color_hex(0x086CD9), 0); // New
+    lv_obj_set_style_bg_color(button, lv_color_hex(0x0454AD), LV_STATE_PRESSED); // New
+    lv_obj_set_style_border_color(button, lv_color_hex(0x2B8CFF), 0); // New
+    lv_obj_set_style_border_width(button, 1, 0); // New
+    lv_obj_set_style_radius(button, 8, 0); // New
+    lv_obj_set_style_shadow_width(button, 0, 0); // New
+    lv_obj_set_style_text_color(button, lv_color_hex(0xFFFFFF), 0); // New
+    lv_obj_set_style_text_font(button, &lv_font_montserrat_24, 0); // New
+    lv_obj_set_style_outline_color(button, lv_color_hex(0x9ACBFF), LV_STATE_FOCUSED); // New
+    lv_obj_set_style_outline_width(button, 2, LV_STATE_FOCUSED); // New
+} // New
+
+static void album_update_image(void) // New
+{ // New
+    if(h == NULL || h->first == NULL || p == NULL || g_bmp == NULL) return; // New
+
+    char lv_path[1024]; // New
+    snprintf(lv_path, sizeof(lv_path), "A:%s", p->data); // New
+    lv_image_set_src(g_bmp, lv_path); // New
+
+    /* BMP uses line-by-line decoding; keep the scaling attempt for reference. */ // New
+#if 0 // New
+    lv_image_header_t image_info; // New
+    if(lv_image_decoder_get_info(lv_path, &image_info) == LV_RESULT_OK && // New
+       image_info.w > 0 && image_info.h > 0) { // New
+        uint32_t scale_w = (920U * 256U) / image_info.w; // New
+        uint32_t scale_h = (390U * 256U) / image_info.h; // New
+        uint32_t scale = scale_w < scale_h ? scale_w : scale_h; // New
+        if(scale > 256U) scale = 256U; // New
+        if(scale == 0U) scale = 1U; // New
+        lv_image_set_scale(g_bmp, scale); // New
+    } // New
+#endif // New
+
+    lv_image_set_scale(g_bmp, LV_SCALE_NONE); // New
+    lv_obj_center(g_bmp); // New
+    lv_obj_remove_flag(g_bmp, LV_OBJ_FLAG_HIDDEN); // New
+
+    const char * filename = strrchr(p->data, '/'); // New
+    filename = filename != NULL ? filename + 1 : p->data; // New
+    lv_label_set_text(album_filename_label, filename); // New
+    lv_label_set_text_fmt(album_counter_label, "%d / %d", album_current_index, h->num); // New
+} // New
+
+static void album_back_cb(lv_event_t * e) // New
+{ // New
+    lv_obj_t * win = lv_event_get_user_data(e); // New
+    lv_obj_remove_flag(Main_win, LV_OBJ_FLAG_HIDDEN); // New
+    lv_obj_delete_async(win); // New
+    album_content = NULL; // New
+    g_bmp = NULL; // New
+    album_filename_label = NULL; // New
+    album_counter_label = NULL; // New
+    album_current_index = 0; // New
+} // New
+
+void Album_Interface(void) // New
+{ // New
+    album_content = lv_obj_create(lv_screen_active()); // New
+    lv_obj_set_size(album_content, 1024, 600); // New
+    lv_obj_set_pos(album_content, 0, 0); // New
+    lv_obj_set_style_bg_color(album_content, lv_color_hex(0x05070B), 0); // New
+    lv_obj_set_style_bg_opa(album_content, LV_OPA_COVER, 0); // New
+    lv_obj_set_style_border_width(album_content, 0, 0); // New
+    lv_obj_set_style_radius(album_content, 0, 0); // New
+    lv_obj_set_style_pad_all(album_content, 0, 0); // New
+    lv_obj_remove_flag(album_content, LV_OBJ_FLAG_SCROLLABLE); // New
+
+    lv_obj_t * btn_back = lv_button_create(album_content); // New
+    lv_obj_set_size(btn_back, 52, 48); // New
+    lv_obj_set_pos(btn_back, 32, 16); // New
+    album_style_button(btn_back); // New
+    lv_obj_t * lbl_back = lv_label_create(btn_back); // New
+    lv_label_set_text(lbl_back, LV_SYMBOL_LEFT); // New
+    lv_obj_center(lbl_back); // New
+    lv_obj_add_event_cb(btn_back, album_back_cb, LV_EVENT_CLICKED, album_content); // New
+
+    lv_obj_t * title = lv_label_create(album_content); // New
+    lv_label_set_text(title, "PHOTO ALBUM"); // New
+    lv_obj_set_style_text_color(title, lv_color_hex(0xFFFFFF), 0); // New
+    lv_obj_set_style_text_font(title, &lv_font_montserrat_30, 0); // New
+    lv_obj_set_pos(title, 108, 24); // New
+
+    album_counter_label = lv_label_create(album_content); // New
+    lv_label_set_text(album_counter_label, "0 / 0"); // New
+    lv_obj_set_style_text_color(album_counter_label, lv_color_hex(0x8B9AAA), 0); // New
+    lv_obj_set_style_text_font(album_counter_label, &lv_font_montserrat_18, 0); // New
+    lv_obj_align(album_counter_label, LV_ALIGN_TOP_RIGHT, -32, 31); // New
+
+    lv_obj_t * header_rule = lv_obj_create(album_content); // New
+    lv_obj_set_size(header_rule, 960, 1); // New
+    lv_obj_set_pos(header_rule, 32, 77); // New
+    lv_obj_set_style_bg_color(header_rule, lv_color_hex(0x202833), 0); // New
+    lv_obj_set_style_bg_opa(header_rule, LV_OPA_COVER, 0); // New
+    lv_obj_set_style_border_width(header_rule, 0, 0); // New
+    lv_obj_remove_flag(header_rule, LV_OBJ_FLAG_SCROLLABLE); // New
+
+    lv_obj_t * image_view = lv_obj_create(album_content); // New
+    lv_obj_set_size(image_view, 960, 424); // New
+    lv_obj_set_pos(image_view, 32, 88); // New
+    lv_obj_set_style_bg_color(image_view, lv_color_hex(0x000000), 0); // New
+    lv_obj_set_style_bg_opa(image_view, LV_OPA_COVER, 0); // New
+    lv_obj_set_style_border_color(image_view, lv_color_hex(0x202C3A), 0); // New
+    lv_obj_set_style_border_width(image_view, 1, 0); // New
+    lv_obj_set_style_radius(image_view, 8, 0); // New
+    lv_obj_set_style_pad_all(image_view, 0, 0); // New
+    lv_obj_remove_flag(image_view, LV_OBJ_FLAG_SCROLLABLE); // New
+
+    g_bmp = lv_image_create(image_view); // New
+
+    lv_obj_t * footer = lv_obj_create(album_content); // New
+    lv_obj_set_size(footer, 960, 60); // New
+    lv_obj_set_pos(footer, 32, 524); // New
+    lv_obj_set_style_bg_color(footer, lv_color_hex(0x0C1118), 0); // New
+    lv_obj_set_style_bg_opa(footer, LV_OPA_COVER, 0); // New
+    lv_obj_set_style_border_color(footer, lv_color_hex(0x202C3A), 0); // New
+    lv_obj_set_style_border_width(footer, 1, 0); // New
+    lv_obj_set_style_radius(footer, 8, 0); // New
+    lv_obj_set_style_pad_all(footer, 0, 0); // New
+    lv_obj_remove_flag(footer, LV_OBJ_FLAG_SCROLLABLE); // New
+
+    album_filename_label = lv_label_create(footer); // New
+    lv_label_set_text(album_filename_label, "No images found"); // New
+    lv_label_set_long_mode(album_filename_label, LV_LABEL_LONG_DOT); // New
+    lv_obj_set_size(album_filename_label, 680, 26); // New
+    lv_obj_set_style_text_color(album_filename_label, lv_color_hex(0xFFFFFF), 0); // New
+    lv_obj_set_style_text_font(album_filename_label, &lv_font_montserrat_18, 0); // New
+    lv_obj_align(album_filename_label, LV_ALIGN_LEFT_MID, 18, 0); // New
+
+    lv_obj_t * button_prev = lv_button_create(footer); // New
+    lv_obj_set_size(button_prev, 58, 44); // New
+    lv_obj_align(button_prev, LV_ALIGN_RIGHT_MID, -82, 0); // New
+    album_style_button(button_prev); // New
+    lv_obj_t * icon_prev = lv_label_create(button_prev); // New
+    lv_label_set_text(icon_prev, LV_SYMBOL_PREV); // New
+    lv_obj_center(icon_prev); // New
+    lv_obj_add_event_cb(button_prev, pic_last, LV_EVENT_CLICKED, NULL); // New
+
+    lv_obj_t * button_next = lv_button_create(footer); // New
+    lv_obj_set_size(button_next, 58, 44); // New
+    lv_obj_align(button_next, LV_ALIGN_RIGHT_MID, -12, 0); // New
+    album_style_button(button_next); // New
+    lv_obj_t * icon_next = lv_label_create(button_next); // New
+    lv_label_set_text(icon_next, LV_SYMBOL_NEXT); // New
+    lv_obj_center(icon_next); // New
+    lv_obj_add_event_cb(button_next, pic_next, LV_EVENT_CLICKED, NULL); // New
+
+    if(h != NULL && h->first != NULL && h->num > 0) { // New
+        p = h->first; // New
+        album_current_index = 1; // New
+        album_update_image(); // New
+    } // New
+    else { // New
+        lv_obj_add_state(button_prev, LV_STATE_DISABLED); // New
+        lv_obj_add_state(button_next, LV_STATE_DISABLED); // New
+        lv_obj_add_flag(g_bmp, LV_OBJ_FLAG_HIDDEN); // New
+        lv_obj_t * empty_label = lv_label_create(image_view); // New
+        lv_label_set_text(empty_label, "No images available"); // New
+        lv_obj_set_style_text_color(empty_label, lv_color_hex(0x6F8193), 0); // New
+        lv_obj_set_style_text_font(empty_label, &lv_font_montserrat_22, 0); // New
+        lv_obj_center(empty_label); // New
+    } // New
+} // New
+
+void show_bmp(void) // New
+{ // New
+    if(h == NULL || h->first == NULL || g_bmp == NULL) return; // New
+    p = h->first; // New
+    album_current_index = 1; // New
+    album_update_image(); // New
+} // New
+
+static void pic_next(lv_event_t * e) // New
+{ // New
+    LV_UNUSED(e); // New
+    if(h == NULL || h->first == NULL || h->num <= 0 || p == NULL) return; // New
+    p = p->next; // New
+    album_current_index = album_current_index >= h->num ? 1 : album_current_index + 1; // New
+    album_update_image(); // New
+} // New
+
+static void pic_last(lv_event_t * e) // New
+{ // New
+    LV_UNUSED(e); // New
+    if(h == NULL || h->first == NULL || h->num <= 0 || p == NULL) return; // New
+    p = p->prev; // New
+    album_current_index = album_current_index <= 1 ? h->num : album_current_index - 1; // New
+    album_update_image(); // New
+} // New
+
 void creat_link(Head *h,char*file_name)
 {
 	DNode *pnew=malloc(sizeof(DNode));
