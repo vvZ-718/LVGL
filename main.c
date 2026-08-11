@@ -2428,25 +2428,92 @@ void lv_example_keyboard_1(void)    //密码系统
     lv_obj_t * login_screen = lv_screen_active();   //登录时保护屏幕
 
 
+    lv_obj_set_style_bg_color(login_screen, lv_color_hex(0x05070B), 0);
+    lv_obj_set_style_bg_opa(login_screen, LV_OPA_COVER, 0);
+
+    lv_obj_t * login_title_mark = lv_obj_create(login_screen);
+    lv_obj_set_size(login_title_mark, 5, 38);
+    lv_obj_set_pos(login_title_mark, 48, 30);
+    lv_obj_set_style_bg_color(login_title_mark, lv_color_hex(0x1687FF), 0);
+    lv_obj_set_style_bg_opa(login_title_mark, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_width(login_title_mark, 0, 0);
+    lv_obj_set_style_radius(login_title_mark, 2, 0);
+    lv_obj_remove_flag(login_title_mark, LV_OBJ_FLAG_SCROLLABLE);
+
+    lv_obj_t * login_title = lv_label_create(login_screen);
+    lv_label_set_text(login_title, "EDUCATION");
+    lv_obj_set_style_text_color(login_title, lv_color_hex(0xFFFFFF), 0);
+    lv_obj_set_style_text_font(login_title, &lv_font_montserrat_32, 0);
+    lv_obj_set_pos(login_title, 68, 30);
+
+    lv_obj_t * login_header_rule = lv_obj_create(login_screen);
+    lv_obj_set_size(login_header_rule, 928, 1);
+    lv_obj_set_pos(login_header_rule, 48, 91);
+    lv_obj_set_style_bg_color(login_header_rule, lv_color_hex(0x202833), 0);
+    lv_obj_set_style_bg_opa(login_header_rule, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_width(login_header_rule, 0, 0);
+    lv_obj_set_style_radius(login_header_rule, 0, 0);
+    lv_obj_remove_flag(login_header_rule, LV_OBJ_FLAG_SCROLLABLE);
+
     /*Create a keyboard to use it with an of the text areas*/
     lv_obj_t * kb = lv_keyboard_create(login_screen);
+    lv_obj_set_size(kb, 1024, 246);
+    lv_obj_align(kb, LV_ALIGN_BOTTOM_MID, 0, 0);
+    lv_obj_set_style_bg_color(kb, lv_color_hex(0x080C12), 0);
+    lv_obj_set_style_bg_opa(kb, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_color(kb, lv_color_hex(0x202C3A), 0);
+    lv_obj_set_style_border_width(kb, 1, 0);
+    lv_obj_set_style_radius(kb, 0, 0);
+    lv_obj_set_style_pad_all(kb, 8, 0);
+    lv_obj_set_style_pad_row(kb, 6, 0);
+    lv_obj_set_style_pad_column(kb, 6, 0);
+    lv_obj_set_style_bg_color(kb, lv_color_hex(0x152131), LV_PART_ITEMS);
+    lv_obj_set_style_bg_color(kb, lv_color_hex(0x075DBD), LV_PART_ITEMS | LV_STATE_PRESSED);
+    lv_obj_set_style_text_color(kb, lv_color_hex(0xFFFFFF), LV_PART_ITEMS);
+    lv_obj_set_style_text_font(kb, &lv_font_montserrat_16, LV_PART_ITEMS);
+    lv_obj_set_style_border_width(kb, 0, LV_PART_ITEMS);
+    lv_obj_set_style_radius(kb, 6, LV_PART_ITEMS);
 
     /*Create a text area. The keyboard will write here*/
     lv_obj_t * ta;
     ta = lv_textarea_create(lv_screen_active());
     g_ta_user = ta;           // 第一个文本框（User）创建后保存
-    lv_obj_align(ta, LV_ALIGN_CENTER, -90, -80);
+    lv_obj_align(ta, LV_ALIGN_CENTER, -160, -80);
     lv_obj_add_event_cb(ta, ta_User_event_cb, LV_EVENT_ALL, kb);
-    lv_textarea_set_placeholder_text(ta, "User");
-    lv_obj_set_size(ta, 140, 80);
+    lv_textarea_set_placeholder_text(ta, "USER NAME");
+    lv_obj_set_size(ta, 280, 64);
+    lv_obj_set_style_bg_color(ta, lv_color_hex(0x0C1118), 0);
+    lv_obj_set_style_bg_opa(ta, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_color(ta, lv_color_hex(0x2B8CFF), 0);
+    lv_obj_set_style_border_width(ta, 1, 0);
+    lv_obj_set_style_border_color(ta, lv_color_hex(0x1687FF), LV_STATE_FOCUSED);
+    lv_obj_set_style_border_width(ta, 2, LV_STATE_FOCUSED);
+    lv_obj_set_style_radius(ta, 8, 0);
+    lv_obj_set_style_pad_all(ta, 14, 0);
+    lv_obj_set_style_text_color(ta, lv_color_hex(0xFFFFFF), 0);
+    lv_obj_set_style_text_font(ta, &lv_font_montserrat_18, 0);
+    lv_obj_set_style_text_color(ta, lv_color_hex(0x6F9DC5), LV_PART_TEXTAREA_PLACEHOLDER);
+    lv_obj_set_style_bg_color(ta, lv_color_hex(0x1687FF), LV_PART_CURSOR | LV_STATE_FOCUSED);
     lv_keyboard_set_textarea(kb, ta);
 
     ta = lv_textarea_create(lv_screen_active());
     g_ta_pass = ta;           // 第二个文本框（password）创建后保存
-    lv_obj_align(ta, LV_ALIGN_CENTER, 90, -80);
+    lv_obj_align(ta, LV_ALIGN_CENTER, 160, -80);
     lv_obj_add_event_cb(ta, ta_Password_event_cb, LV_EVENT_ALL, kb);
-    lv_textarea_set_placeholder_text(ta, "password");
-    lv_obj_set_size(ta, 140, 80);
+    lv_textarea_set_placeholder_text(ta, "PASSWORD");
+    lv_obj_set_size(ta, 280, 64);
+    lv_obj_set_style_bg_color(ta, lv_color_hex(0x0C1118), 0);
+    lv_obj_set_style_bg_opa(ta, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_color(ta, lv_color_hex(0x2B8CFF), 0);
+    lv_obj_set_style_border_width(ta, 1, 0);
+    lv_obj_set_style_border_color(ta, lv_color_hex(0x1687FF), LV_STATE_FOCUSED);
+    lv_obj_set_style_border_width(ta, 2, LV_STATE_FOCUSED);
+    lv_obj_set_style_radius(ta, 8, 0);
+    lv_obj_set_style_pad_all(ta, 14, 0);
+    lv_obj_set_style_text_color(ta, lv_color_hex(0xFFFFFF), 0);
+    lv_obj_set_style_text_font(ta, &lv_font_montserrat_18, 0);
+    lv_obj_set_style_text_color(ta, lv_color_hex(0x6F9DC5), LV_PART_TEXTAREA_PLACEHOLDER);
+    lv_obj_set_style_bg_color(ta, lv_color_hex(0x1687FF), LV_PART_CURSOR | LV_STATE_FOCUSED);
     lv_keyboard_set_textarea(kb, ta);
     lv_obj_remove_flag(kb, LV_OBJ_FLAG_HIDDEN);   // 强制显示键盘
 }
