@@ -1,0 +1,32 @@
+# Windows virtual-screen build. The development-board Makefile is untouched.
+
+TOOLCHAIN ?= C:/LVGL_Path/mingw64
+SDL_ROOT ?= C:/LVGL_Path/x86_64-w64-mingw32
+CC := $(TOOLCHAIN)/bin/gcc.exe
+
+TARGET := screen_build/screen.exe
+SOURCE_LIST := screen_build/sources.rsp
+
+CPPFLAGS := -DSCREEN_SIMULATOR=1 -DLV_CONF_INCLUDE_SIMPLE -I. -ILVGL -I$(SDL_ROOT)/include
+CFLAGS := -std=c99 -O0 -g -Wall -Wextra -Wno-unused-function -Wno-unused-parameter \
+	-Wno-missing-field-initializers -Wno-sign-compare -Wno-discarded-qualifiers
+LDFLAGS := -L$(SDL_ROOT)/lib -static-libgcc
+LDLIBS := -lSDL2 -lws2_32 -lmingw32 -lgdi32 -luser32 -lkernel32 -lm
+
+.PHONY: all prepare run clean
+
+all: $(TARGET)
+
+prepare:
+	@if not exist screen_build mkdir screen_build
+	@powershell -NoProfile -Command "$$files = Get-ChildItem -LiteralPath 'LVGL/src' -Recurse -File -Filter '*.c' | Where-Object { $$_.FullName -notmatch '[\\/]draw[\\/]sdl[\\/]' }; @('Screen_main.c','game_2048.c','mouse_cursor_icon.c') + ($$files | ForEach-Object { $$_.FullName.Substring((Get-Location).Path.Length + 1).Replace([char]92,[char]47) }) | Set-Content -Encoding Ascii '$(SOURCE_LIST)'"
+
+$(TARGET): prepare main.c lv_conf.h Screen_main.c game_2048.c mouse_cursor_icon.c qq_protocol.h
+	$(CC) $(CPPFLAGS) $(CFLAGS) @$(SOURCE_LIST) -o $@ $(LDFLAGS) $(LDLIBS)
+	@copy /Y "$(SDL_ROOT)\bin\SDL2.dll" "screen_build\SDL2.dll" >NUL
+
+run: $(TARGET)
+	@powershell -NoProfile -Command "Start-Process -FilePath (Resolve-Path '$(TARGET)') -WorkingDirectory (Resolve-Path 'screen_build')"
+
+clean:
+	@if exist screen_build rmdir /S /Q screen_build
