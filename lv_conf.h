@@ -587,7 +587,11 @@
 /*File system interfaces for common APIs */
 
 /*API for fopen, fread, etc*/
+#ifdef SCREEN_SIMULATOR
+#define LV_USE_FS_STDIO 0
+#else
 #define LV_USE_FS_STDIO 1
+#endif
 #if LV_USE_FS_STDIO
     #define LV_FS_STDIO_LETTER 'A'     /*Set an upper cased letter on which the drive will accessible (e.g. 'A')*/
     #define LV_FS_STDIO_PATH ""         /*Set the working directory. File/directory paths will be appended to it.*/
@@ -595,7 +599,11 @@
 #endif
 
 /*API for open, read, etc*/
+#ifdef SCREEN_SIMULATOR
+#define LV_USE_FS_POSIX 0
+#else
 #define LV_USE_FS_POSIX 1
+#endif
 #if LV_USE_FS_POSIX
     #define LV_FS_POSIX_LETTER 'A'     /*Set an upper cased letter on which the drive will accessible (e.g. 'A')*/
     #define LV_FS_POSIX_PATH ""         /*Set the working directory. File/directory paths will be appended to it.*/
@@ -690,10 +698,18 @@
 #define LV_USE_RLOTTIE 0
 
 /*Enable Vector Graphic APIs*/
+#ifdef SCREEN_SIMULATOR
+#define LV_USE_VECTOR_GRAPHIC  0
+#else
 #define LV_USE_VECTOR_GRAPHIC  1
+#endif
 
 /* Enable ThorVG (vector graphics library) from the src/libs folder */
+#ifdef SCREEN_SIMULATOR
+#define LV_USE_THORVG_INTERNAL 0
+#else
 #define LV_USE_THORVG_INTERNAL 1
+#endif
 
 /* Enable ThorVG by assuming that its installed and linked to the project */
 #define LV_USE_THORVG_EXTERNAL 0
@@ -829,7 +845,11 @@
  *==================*/
 
 /*Use SDL to open window on PC and handle mouse and keyboard*/
+#ifdef SCREEN_SIMULATOR
+#define LV_USE_SDL              1
+#else
 #define LV_USE_SDL              0
+#endif
 #if LV_USE_SDL
     #define LV_SDL_INCLUDE_PATH    <SDL2/SDL.h>
     #define LV_SDL_RENDER_MODE     LV_DISPLAY_RENDER_MODE_DIRECT   /*LV_DISPLAY_RENDER_MODE_DIRECT is recommended for best performance*/
@@ -850,7 +870,11 @@
 #endif
 
 /*Driver for /dev/fb*/
+#ifdef SCREEN_SIMULATOR
+#define LV_USE_LINUX_FBDEV      0
+#else
 #define LV_USE_LINUX_FBDEV      1
+#endif
 #if LV_USE_LINUX_FBDEV
     #define LV_LINUX_FBDEV_BSD           0
     #define LV_LINUX_FBDEV_RENDER_MODE   LV_DISPLAY_RENDER_MODE_DIRECT
@@ -886,7 +910,11 @@
 #define LV_USE_TFT_ESPI         0
 
 /*Driver for evdev input devices*/
+#ifdef SCREEN_SIMULATOR
+#define LV_USE_EVDEV    0
+#else
 #define LV_USE_EVDEV    1
+#endif
 
 /*Drivers for LCD devices connected via SPI/parallel port*/
 #define LV_USE_ST7735       0
@@ -957,4 +985,3 @@
 #endif /*LV_CONF_H*/
 
 #endif /*End of "Content enable"*/
-
